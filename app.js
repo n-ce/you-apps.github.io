@@ -1,64 +1,44 @@
-const $ = document.querySelector.bind(document);
-const x = document.createElement.bind(document);
+let [fetchData, repoContent, membersContent] = [
+  path => fetch(`https://api.github.com/orgs/you-apps/${path}`).then(res => res.json()),
+  "", ""];
 
-const reposUrl = "https://api.github.com/orgs/you-apps/repos";
-const membersUrl = "https://api.github.com/orgs/you-apps/members";
+Promise
+  .all([fetchData('repos'), fetchData('members')])
+  .then(([repos, members]) => {
+    repoContent = repos
+      .filter(repo => repo.name.endsWith("You") && !repo.archived)
+      .sort((a, b) => b.stargazers_count - a.stargazers_count)
+      .map(repo => `
+          <a class="card" href="${repo.html_url}">
+            <img alt="${repo.name} icon"
+              src="https://raw.githubusercontent.com/you-apps/${repo.name}/main/fastlane/metadata/android/en-US/images/icon.png">
+            <div>
+              <h3>${repo.name}</h3>
+              <p>${repo.description}</p>
+            </div>
+            <span class="stars">
+              <img src="assets/star.svg" alt="Star icon">
+              ${repo.stargazers_count}
+            </span>
+          </a>
+        `)
+      .join('');
 
-async function fetchJson(url) {
-  const response = await fetch(url);
-  const json = await response.json();
-
-  return json;
-}
-
-async function loadRepos() {
-  const repos = await fetchJson(reposUrl);
-  repos
-    .filter(repo => repo.name.endsWith("You") && !repo.archived)
-    .sort((a, b) => b.stargazers_count - a.stargazers_count)
-    .forEach(repo => {
-      const a = x("a");
-      a.className = "card";
-      a.href = repo.html_url;
-
-      const img = x("img");
-      img.src = `https://raw.githubusercontent.com/you-apps/${repo.name}/main/fastlane/metadata/android/en-US/images/icon.png`;
-
-      const div = x("div");
-      const h3 = x("h3");
-      h3.textContent = repo.name;
-      const p = x("p");
-      p.textContent = repo.description;
-      div.append(h3, p);
-
-      const span = x("span");
-      span.className = "stars";
-      const starIcon = x("img");
-      starIcon.src = "assets/star.svg";
-      span.append(starIcon, repo.stargazers_count);
-
-      a.append(img, div, span);
-      $("#apps > div").appendChild(a);
-    });
-}
-
-async function loadMembers() {
-  const members = await fetchJson(membersUrl);
-  for (const member of members) {
-    const a = x("a");
-    a.className = "card";
-    a.href = member.html_url;
-    
-    const img = x("img");
-    img.src = member.avatar_url;
-    
-    const h3 = x("h3");
-    h3.textContent = member.login;
-    
-    a.append(img, h3);
-    $("#team > div").appendChild(a);
-  }
-}
-
-loadRepos();
-loadMembers();
+    membersContent = members
+      .map(member => `
+          <a class="card" href="${member.html_url}">
+            <img src="${member.avatar_url}" alt="${member.login}'s avatar">
+            <h3>${member.login}</h3>
+          </a>
+        `)
+      .join('');
+  })
+  .catch(error => {
+    console.error("Error loading data:", error);
+    repoContent = "<p>Failed to load apps. Please check the network connection.</p>";
+    membersContent = "<p>Failed to load team members. Please check the network connection.</p>";
+  })
+  .finally(() => {
+    document.querySelector("#apps > div").innerHTML = repoContent;
+    document.querySelector("#team > div").innerHTML = membersContent;
+  });
